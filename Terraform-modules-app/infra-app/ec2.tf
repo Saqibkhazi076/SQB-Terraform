@@ -1,8 +1,11 @@
 # Key pair
 resource "aws_key_pair" "my_ec2_key_new" {
-  key_name   = "terra-key-ec2-2"
+  key_name   = "${var.env}-infra-app-key"
   public_key = file("terra-key-ec2.pub")
 
+  tags = {
+	Environment = var.env
+      }
 }
 
 # VPC & Security Group
@@ -11,7 +14,7 @@ resource aws_default_vpc default {
 }
 
 resource aws_security_group my_security_group {
-    name = "automate_sg_sqb"
+    name = "${var.env}-infra-app-sg"
     description = "this will add a TF generated Security Group"
     vpc_id      = aws_default_vpc.default.id #interpolation
 
@@ -32,14 +35,6 @@ resource aws_security_group my_security_group {
         description = "HTTP Access"
     }
 
-    ingress {
-        from_port = 8000
-        to_port = 8000
-        protocol = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-        description = "Custom App Port"
-    }
-
     # outbound rules
     egress {
         from_port = 0
@@ -50,7 +45,7 @@ resource aws_security_group my_security_group {
     }
 
     tags = {
-        Name = "automate_sg"
+        Name = "${var.env}-infra-app-sg"
   }
 }
 
@@ -60,25 +55,21 @@ resource aws_instance my_instance {
 	aws_security_group.my_security_group,
 	aws_key_pair.my_ec2_key_new
 ]
-    for_each = tomap({
-	TWS-Junoon-automate-micro  = "t3.micro"
-	TWS-Junoon-automate-small = "t3.small"
-	TWS-Junoon-automate-micro-2 = "t3.micro"
-}) # Meta Argument
+    count = var.instance_count
+
 
     key_name = aws_key_pair.my_ec2_key_new.key_name # Interpolation for keypair
     security_groups = [aws_security_group.my_security_group.name]
-    instance_type = each.value
+    instance_type = var.instance_type
     ami = var.ec2_ami_id
-    user_data = file("install_nginx.sh")
 
     root_block_device {
-      volume_size = var.env == "prd" ? 20 : var.aws_default_root_storage_size #20gb for prd & 10gb for dev
+      volume_size = var.env == "prd" ? 20 : 10  #20gb for prd & 10gb for dev
       volume_type = "gp3"
     }
   
 
   tags = {
-    Name = each.key
+    Name = "${var.env}-infra-app-instance"
   }
 }
